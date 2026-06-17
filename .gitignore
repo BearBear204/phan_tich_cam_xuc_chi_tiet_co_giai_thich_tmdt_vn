@@ -1,6 +1,6 @@
 # ==========================================
 # GITIGNORE CHO DỰ ÁN DATN
-# Chỉ đẩy lên Git: datn/src/, paper/, requirements.txt
+# Chỉ đẩy lên Git: src/, paper/, requirements.txt
 # ==========================================
 
 # Bỏ qua bytecode Python
@@ -22,11 +22,8 @@ __pycache__/
 *.env
 .env.*
 
-# Bỏ qua các thư mục dữ liệu, mô hình nặng bên trong datn/
-/datn/data/
-/datn/logs/
-/datn/models/
-/datn/results/
-/datn/zip/
-/datn/.git/
-/datn/.gitignore
+# Bỏ qua các thư mục dữ liệu, mô hình nặng ở thư mục gốc
+/data/
+/logs/
+/models/
+/results/

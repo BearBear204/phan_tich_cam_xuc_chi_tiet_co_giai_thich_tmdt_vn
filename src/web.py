@@ -654,7 +654,7 @@ PAGE_HTML = r"""<!doctype html>
         renderResult(data);
         showInfo(`Xong. Model chạy trên ${data.device || "unknown"}, latency ${data.elapsed_ms ?? "--"} ms.`);
       } catch (error) {
-        showError(`${error.message || String(error)}. Nếu bạn đang mở file trực tiếp, hãy chạy: python datn/src/web.py rồi mở URL được in trong terminal.`);
+        showError(`${error.message || String(error)}. Nếu bạn đang mở file trực tiếp, hãy chạy: python src/web.py rồi mở URL được in trong terminal.`);
       } finally {
         setBusy(false);
       }
@@ -671,7 +671,7 @@ PAGE_HTML = r"""<!doctype html>
         }
       } catch {
         $("healthText").textContent = "Không kết nối";
-        showError("Không kết nối được backend. Chạy: python datn/src/web.py rồi mở URL được in trong terminal.");
+        showError("Không kết nối được backend. Chạy: python src/web.py rồi mở URL được in trong terminal.");
       }
     }
 
