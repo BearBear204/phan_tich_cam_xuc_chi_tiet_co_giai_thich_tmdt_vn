@@ -1,0 +1,32 @@
+# ==========================================
+# GITIGNORE CHO DỰ ÁN DATN
+# Chỉ đẩy lên Git: datn/src/, paper/, requirements.txt
+# ==========================================
+
+# Bỏ qua bytecode Python
+__pycache__/
+*.py[cod]
+
+# Mặc định: Bỏ qua toàn bộ các thư mục khác ở thư mục gốc
+/code_paper/
+/evaluation_XAI/
+/mermaid/
+/old/
+/zip/
+/archive_history/
+/archive/
+/.venv/
+/.agents/
+/.codex
+.env
+*.env
+.env.*
+
+# Bỏ qua các thư mục dữ liệu, mô hình nặng bên trong datn/
+/datn/data/
+/datn/logs/
+/datn/models/
+/datn/results/
+/datn/zip/
+/datn/.git/
+/datn/.gitignore

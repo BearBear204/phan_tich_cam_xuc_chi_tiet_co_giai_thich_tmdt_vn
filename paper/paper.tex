@@ -1,0 +1,456 @@
+\documentclass[a4paper,12pt]{extarticle}
+
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{newtxtext,newtxmath}
+\usepackage{amsmath}
+\usepackage{booktabs}
+\usepackage{graphicx}
+\usepackage{geometry}
+\usepackage{float}
+\usepackage[hidelinks]{hyperref}
+\usepackage{enumitem}
+\usepackage{hanging}
+\usepackage[most]{tcolorbox}
+
+\geometry{
+    left=3cm,
+    right=2cm,
+    top=2cm,
+    bottom=2cm
+}
+
+\AtBeginDocument{\fontsize{13pt}{19.5pt}\selectfont}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{0.4em}
+\graphicspath{{results/figures/}}
+
+\begin{document}
+
+\begin{center}
+\textbf{An Explainable Framework for Fine-Grained Sentiment Analysis of Vietnamese E-commerce Reviews}\\[0.5em]
+
+Vu Duc Anh (Student), Le Thi Thuy Trang (MSc.)\\
+Faculty of Information Technology, Dai Nam University\\
+Email: anhvuduc9204@gmail.com, trangltt@dainam.edu.vn\\
+Phone: 0936842534, 0966730396
+\end{center}
+
+\begin{center}
+\textbf{Abstract}
+\end{center}
+
+
+Large volumes of user reviews have been generated alongside the growth of e-commerce platforms, and these reviews may reflect customer experience, product quality, and service performance. However, conventional sentiment analysis is often limited to overall polarity and may provide limited evidence for aspect-specific opinions. In this paper, an explainable framework for fine-grained sentiment analysis of Vietnamese e-commerce reviews is presented. A Vietnamese skincare review dataset was constructed through a custom Shopee crawling and preprocessing pipeline. Document-level rating prediction, aspect-based sentiment analysis (ABSA), and explainable AI methods were then combined to provide both model outputs and supporting textual evidence. On a shared 1000-sample document benchmark, PhoBERT obtained an accuracy of 0.5210 and a macro F1-score of 0.5273, which were higher than those of the stable CNN baseline. For aspect-level analysis, the selected balanced PhoBERT ABSA model obtained an accuracy of 0.9012 and a macro F1-score of 0.5730 on the held-out test set. These results suggest that the framework may provide useful support for more transparent analysis of Vietnamese e-commerce reviews.
+
+
+\textit{Keywords:} fine-grained sentiment analysis, explainable AI, aspect-based sentiment analysis, Vietnamese e-commerce reviews, opinion mining
+\vspace{1em}
+
+\section{Introduction}
+
+Vietnamese e-commerce platforms such as Shopee, Lazada, and TikTok Shop have become important sources of user reviews. These reviews may contain overall satisfaction signals as well as comments on product quality, delivery, packaging, service, and skin compatibility in the skincare domain. They can be useful for business analysis, but they are also noisy, informal, and domain-specific, which makes sentiment analysis challenging.
+
+Many sentiment analysis systems still predict only one label for an entire review. Such outputs may be useful, but they often do not indicate whether a negative opinion is related to the product, delivery, or seller service. Therefore, fine-grained and explainable sentiment analysis may be needed for more practical review mining.
+
+In this study, an explainable framework for Vietnamese e-commerce reviews is proposed. The framework includes three components: document-level rating prediction on a 1--5 star scale, aspect-based sentiment analysis (ABSA) for core business aspects, and explainable AI (XAI) methods for highlighting textual evidence.
+
+The main contributions can be summarized as follows:
+\begin{enumerate}[leftmargin=1.5em]
+    \item A Vietnamese skincare review dataset is constructed through a custom Shopee crawling and post-crawl preprocessing pipeline, with review-level metadata and user-provided aspect ratings preserved.
+    \item Text-only document-level models are benchmarked, and PhoBERT is selected as the main document-level classifier among the stable candidates.
+    \item An ABSA core is derived from user-provided aspect ratings instead of purely heuristic labels.
+    \item Integrated Gradients and attention-based interpretation are included to support more transparent analysis.
+\end{enumerate}
+
+Beyond prediction, the framework is intended to support review-based decision-making by combining data collection, cleaning, aspect-level analysis, and explanation.
+
+\section{Literature Review and Theoretical Background}
+
+\subsection{Fine-Grained Sentiment Analysis and ABSA}
+
+Fine-grained sentiment analysis models sentiment at detailed levels such as ratings, aspects, or opinion targets. This is important in customer reviews because different aspects in the same review may carry different sentiments. Earlier work has shown the usefulness of aspect-level sentiment in review mining (Hu \& Liu, 2004). Recently, the scope of Vietnamese ABSA has expanded to larger benchmarks across multiple domains, such as the ViTASA dataset for targeted aspect sentiment analysis (Tran et al., 2025). In this study, ABSA is used to complement document-level prediction by identifying sentiment toward key e-commerce aspects.
+
+\subsection{Pretrained Language Models for Vietnamese NLP}
+
+Transformer-based pretrained language models have been widely used for sentiment classification and text understanding. BERT introduced bidirectional contextual pretraining (Devlin et al., 2019), while PhoBERT adapted this approach to Vietnamese and reported good results on several downstream tasks (Nguyen \& Nguyen, 2020). Given the noisy nature of Vietnamese e-commerce reviews, PhoBERT is used as the main encoder in this study.
+
+
+In recent years, the paradigm has shifted toward using Large Language Models (LLMs) via prompt engineering for Vietnamese sentiment tasks (Dang et al., 2024). While LLMs like GPT-4 show impressive zero-shot reasoning, specialized studies on Vietnamese implicit sentiment analysis highlight that LLMs can suffer from lower precision when processing complex linguistic features, sarcasm, or noisy domain-specific texts (Nguyen et al., 2024). Consequently, locally fine-tuned pre-trained encoders such as PhoBERT remain highly practical for e-commerce sentiment pipelines due to their computational efficiency, data privacy advantages, and ease of local integration with post-hoc explanation layers.
+
+
+\subsection{Explainability in NLP}
+
+In decision-support settings, accuracy alone is often insufficient because users may also need to inspect why a prediction was made. Integrated Gradients provides a gradient-based attribution method for estimating token-level contributions (Sundararajan et al., 2017). Attention visualization is also useful for qualitative inspection, although it should not be treated as a complete explanation by itself (Jain \& Wallace, 2019). Therefore, Integrated Gradients is used as the main explanation method, while attention is used as a supplementary aid.
+
+\subsection{Theoretical Framing of the Proposed Framework}
+
+The framework is based on a multi-level view of review mining. A document-level predictor gives an overall sentiment signal, an aspect-level classifier separates sentiment by business-relevant dimensions, and an explanation layer highlights supporting text. This design is considered suitable because customer feedback often contains both an overall evaluation and aspect-specific comments.
+
+\section{Research Methodology and Research Model}
+
+\subsection{Problem Definition}
+
+Given a Vietnamese product review $x$, the document-level task is defined as predicting a fine-grained label $y \in \{1,2,3,4,5\}$, where each label corresponds to a star rating. Higher ratings generally indicate more positive sentiment.
+
+For ABSA, the input is a pair $(x, a)$, where $x$ is the review text and $a$ is a predefined aspect. The output is an aspect-level label $z$ with three classes: \textit{positive}, \textit{negative}, and \textit{neutral}. This module is used to indicate which aspect is associated with the sentiment in the review.
+
+The explainability component returns token-level importance scores for document-level or aspect-level predictions. These scores are used to show which words or subword units contribute to the prediction.
+
+\subsection{Mathematical Formulation}
+
+Let $h_x$ denote the contextual representation of review $x$ produced by the encoder. The document-level classifier estimates the probability of each rating class by
+\begin{equation}
+p(y = k \mid x) = \frac{\exp\left(W_k h_x + b_k\right)}
+{\sum_{j=1}^{5} \exp\left(W_j h_x + b_j\right)},
+\end{equation}
+where $k \in \{1,2,3,4,5\}$. The predicted label is obtained by
+\begin{equation}
+\hat{y} = \arg\max_k p(y = k \mid x).
+\end{equation}
+
+For ABSA, the input is a review--aspect pair $(x,a)$. Let $h_{x,a}$ denote the pair representation produced by PhoBERT. The aspect-level classifier estimates
+\begin{equation}
+p(z = c \mid x, a) = \frac{\exp\left(U_c h_{x,a} + d_c\right)}
+{\sum_{m=1}^{C} \exp\left(U_m h_{x,a} + d_m\right)},
+\end{equation}
+where $c$ is an aspect sentiment class and $C=3$ in the core setting.
+
+\subsection{Source Dataset and Preprocessing}
+
+The workflow includes Shopee review crawling, post-crawl preprocessing, review-level splitting, and downstream document-level, ABSA, and explainability analysis.
+
+The main dataset is \texttt{reviews\_final\_cleaned.csv}, a cleaned Vietnamese skincare review dataset. Raw reviews were collected from Shopee product pages through a custom Playwright-based crawler. Product URLs were prepared in plain-text lists, from which \texttt{shop\_id} and \texttt{item\_id} were parsed. Product metadata were retrieved from the \texttt{item/get} endpoint, and review records were retrieved from the \texttt{item/get\_ratings} endpoint. Retry logic, backoff, checkpointing, progress tracking, resume support, and deduplication by \texttt{review\_id} were included to reduce data loss during crawling.
+
+Each review record preserved the text and metadata needed for analysis, including \texttt{product\_name}, \texttt{item\_id}, \texttt{rating\_star}, \texttt{comment}, \texttt{product\_quality}, \texttt{seller\_service}, \texttt{delivery\_service}, \texttt{template\_tags}, and \texttt{review\_id}. Only reviews with textual content were retained. The user-provided aspect ratings were used as a more direct basis for ABSA than purely heuristic labels.
+
+
+After collection, the data were cleaned with \texttt{preprocess\_reviews\_pipeline.py}. The document-level rating branch was then created from the cleaned dataset using the following steps:
+
+
+
+\begin{itemize}[leftmargin=1.5em]
+\item light text normalization, including Unicode normalization, control-character removal, and whitespace standardization,
+\item hard filtering of no-value and off-topic reviews, including foreign-script spam, URL or social-media spam, telecom-style system messages, clipboard artifacts, and clearly irrelevant topical noise,
+\item salvage processing for explicit \textit{nhan xu} boilerplate by trimming reward-seeking fragments and re-checking whether the remaining text is still contextually valid,
+\item optional exact-duplicate capping to reduce highly repetitive boilerplate reviews,
+\item stratified splitting with respect to the overall star label,
+\item augmentation restricted to the training branch after the base split has been fixed,
+\item filtering of augmented rows against holdout keys derived from validation and test data.
+\end{itemize}
+
+
+
+Audit outputs for dropped rows and summary statistics were also written by the preprocessing pipeline. This workflow was designed to improve data quality through normalization, hard filtering, salvage of low-value boilerplate, and duplicate control. However, the current study should still be interpreted as relying on a structured preprocessing workflow rather than on a separate large-scale human validation study of the cleaned dataset. For the active rating branch, the split design should be interpreted as a practical leakage-risk reduction strategy rather than as a full zero-overlap audit over all historical artifacts. The cleaned review pool was first split into training, validation, and test partitions with stratification by star label, and augmentation was added only to training after the holdout partitions had been fixed.
+
+
+
+The cleaned review source used in this study contains 834{,}251 rows, 834{,}251 unique \texttt{review\_id} values, and 426 unique \texttt{item\_id} values. A lightweight descriptive check on the active cleaned file also shows 9{,}247 exact duplicate comment rows, a mean comment length of 131.27 characters, and a median comment length of 112 characters. These statistics do not replace human validation, but they support the claim that the cleaned dataset remains large, information-rich, and suitable for downstream document-level and aspect-level construction.
+
+
+To reduce class imbalance, AI-assisted data augmentation was explored for underrepresented classes. Synthetic samples were used only in training, while validation and test sets were kept unchanged.
+
+\subsection{ABSA Core Construction}
+
+For the main ABSA experiments, an ABSA core was derived from three user-provided aspect dimensions:
+
+\begin{itemize}[leftmargin=1.5em]
+\item \texttt{product\_quality},
+\item \texttt{seller\_service},
+\item \texttt{delivery\_service}.
+\end{itemize}
+
+These aspect ratings were converted into sentiment labels as follows:
+
+\begin{itemize}[leftmargin=1.5em]
+\item ratings 4--5 $\rightarrow$ positive,
+\item rating 3 $\rightarrow$ neutral,
+\item ratings 1--2 $\rightarrow$ negative.
+\end{itemize}
+
+
+Samples with aspect value 0 were excluded because this value indicates missing or unspecified aspect evaluation rather than sentiment polarity. The ABSA branch was then reorganized with \texttt{build\_absa\_data.py}. In the active pipeline, splitting is performed at the review level first and only then expanded into review--aspect pairs. Each review is assigned a composite aspect signature based on the three user-rated aspect labels, and the selected balanced run is built from \texttt{train\_3class\_balanced.csv}, \texttt{val\_3class\_balanced.csv}, and \texttt{test\_3class\_balanced.csv}. Label balancing is applied only to the training branch, while validation and test preserve the naturally skewed label distribution of the cleaned review pool. This labeling strategy is stronger than purely heuristic keyword assignment because it is based on explicit user-provided aspect ratings. At the same time, it should not be treated as equivalent to a benchmark-style ABSA dataset with manually annotated aspect sentiment labels.
+
+
+This three-class design was used to keep ABSA as a polarity classification task. Ratings 1--2 and 4--5 were grouped into negative and positive classes, while rating 3 was treated as neutral.
+
+
+The resulting ABSA corpus is still large and naturally skewed toward positive labels, so the selected balanced run uses a rebalanced training split while leaving validation and test closer to the original evaluation setting.
+
+
+
+In the selected active run, the label distribution remains highly uneven outside the balanced training branch. The training split contains 55.72\% positive, 25.71\% negative, and 18.57\% neutral samples, while the held-out test split contains 93.90\% positive, 3.52\% negative, and 2.58\% neutral samples. This split profile is important for interpreting the later ABSA metrics.
+
+
+\begin{table}[ht]
+
+\centering
+\caption{Aspect-wise label distribution in the ABSA core after removing the \textit{none} label.}
+\label{tab:absa-aspect-dist}
+\begin{tabular}{lrrrr}
+\toprule
+\textbf{Aspect} & \textbf{Positive} & \textbf{Negative} & \textbf{Neutral} & \textbf{Total} \\
+\midrule
+Product quality & 730,861 & 48,843 & 41,582 & 821,286 \\
+Service & 618,190 & 19,208 & 7,638 & 645,036 \\
+Delivery & 633,651 & 6,582 & 4,797 & 645,030 \\
+\bottomrule
+\end{tabular}
+
+\end{table}
+
+\subsection{Research Model and Explainability Layer}
+
+The framework consists of three levels: document-level prediction, aspect-level interpretation, and post-hoc explanation.
+
+At the document level, the overall review rating is predicted. Several text-only CNN and PhoBERT variants in the project repository were checked. During model auditing, some historical CNN artifacts were found to contain non-finite weights or unstable outputs. After this check, two stable models were retained for comparison:
+
+
+\begin{itemize}[leftmargin=1.5em]
+\item a CNN text-only baseline, referred to here as the \textbf{CNN baseline},
+\item the main transformer model, referred to here as \textbf{PhoBERT rating}.
+\end{itemize}
+
+
+
+PhoBERT is used as the primary document-level classifier because it obtained the highest observed score among the stable single-model candidates.
+
+
+
+The ABSA module is implemented with PhoBERT in a sentence-pair classification setting. Each input pair contains the review text and an aspect name, and the sentiment polarity of that aspect is predicted. In the final design, the main ABSA branch is limited to the core aspects with user-rated labels; this branch is referred to here as \textbf{PhoBERT ABSA}.
+
+
+An extended ABSA direction with heuristic aspect enrichment was also explored. Because those labels depend on keyword rules and weak supervision, they are treated as exploratory rather than as the main evaluation basis.
+
+
+To support interpretability, two XAI techniques are applied within the framework, with the qualitative analysis in this paper focused mainly on the PhoBERT document-level branch:
+
+
+\begin{itemize}[leftmargin=1.5em]
+\item \textbf{Integrated Gradients (IG):} a gradient-based attribution method used to estimate token contribution,
+\item \textbf{Attention Visualization:} an attention-based method used to inspect token focus.
+\end{itemize}
+
+Integrated Gradients is treated as the primary explanation method, while attention is used as a secondary qualitative visualization.
+
+
+For Integrated Gradients, the attribution score of token $t$ can be written as
+\begin{equation}
+\mathrm{IG}_t(x) = \left(x_t - x_t^{\prime}\right) \int_{0}^{1}
+\frac{\partial F\left(x^{\prime} + \alpha \left(x - x^{\prime}\right)\right)}
+{\partial x_t}\, d\alpha,
+\end{equation}
+where $x^{\prime}$ is a baseline input and $F(\cdot)$ denotes the model output for the predicted class.
+ In addition, the attention-based visualization uses the average last-layer attention from the classification token to each input token:
+\begin{equation}
+A_t = \frac{1}{H} \sum_{h=1}^{H} A^{(L)}_{h,\mathrm{[CLS]},t},
+\end{equation}
+where $H$ is the number of attention heads and $L$ is the last transformer layer.
+
+\subsection{Experimental Setup}
+
+
+Model selection followed a stability-first strategy. Earlier CNN artifacts were audited before reuse, and checkpoints with non-finite outputs were excluded. The remaining stable models were benchmarked on a shared 1000-sample text-only review benchmark with a fixed label mix.
+
+
+For document-level classification, accuracy, macro F1-score, weighted F1-score, and per-class recall are reported. Macro F1 is emphasized because review data are imbalanced.
+
+The main evaluation metrics are defined as follows. Let $N$ be the number of samples and let $\mathbb{I}(\cdot)$ be the indicator function. Accuracy is computed by
+\begin{equation}
+\mathrm{Accuracy} = \frac{1}{N} \sum_{i=1}^{N} \mathbb{I}(y_i = \hat{y}_i).
+\end{equation}
+
+For a class $c$, precision and recall are defined by
+\begin{equation}
+\mathrm{Precision}_c = \frac{TP_c}{TP_c + FP_c}, \qquad
+\mathrm{Recall}_c = \frac{TP_c}{TP_c + FN_c},
+\end{equation}
+where $TP_c$, $FP_c$, and $FN_c$ denote true positives, false positives, and false negatives, respectively. The class-wise F1-score is then
+\begin{equation}
+F1_c = \frac{2 \cdot \mathrm{Precision}_c \cdot \mathrm{Recall}_c}
+{\mathrm{Precision}_c + \mathrm{Recall}_c}.
+\end{equation}
+
+Macro F1 and Weighted F1 are computed by
+\begin{equation}
+\mathrm{Macro\mbox{-}F1} = \frac{1}{C} \sum_{c=1}^{C} F1_c,
+\end{equation}
+\begin{equation}
+\mathrm{Weighted\mbox{-}F1} = \sum_{c=1}^{C} \frac{n_c}{N} F1_c,
+\end{equation}
+where $n_c$ is the number of samples in class $c$ and $C$ is the number of classes.
+
+For ABSA, accuracy, macro F1, weighted F1, a class-wise classification report, and the confusion matrix are reported. Because the ABSA dataset is imbalanced, macro F1 is treated as the main indicator, while accuracy is reported as a secondary measure.
+
+
+The final document-level selection focused on stable text-only architectures. PhoBERT rating was retained as the main classifier, while the surviving CNN baseline was used as the comparison model. Both models were evaluated on the same fixed 1000-sample benchmark.
+
+
+
+For ABSA, PhoBERT ABSA was trained in a sentence-pair setting on a balanced training subset derived from the core three-aspect dataset. The validation and test sets kept their original label distributions. The final split was created at the review level before expansion into review--aspect pairs so that the same review text would not appear across train, validation, and test under different aspect instances. Aspect names were expressed as Vietnamese natural-language prompts. The selected ABSA model is the checkpoint from the balanced three-class run with the highest validation macro F1-score. The run used batch size 16, gradient accumulation 2, maximum sequence length 128, and early stopping on an NVIDIA A30 GPU. An augmentation-oriented experiment was also conducted, but it did not increase validation macro F1 over the balanced baseline.
+
+
+\section{Results and Discussion}
+
+\subsection{Document-Level Benchmark}
+
+
+The stable CNN baseline and the selected PhoBERT model were compared on a shared benchmark set of 1000 Vietnamese skincare reviews. Both models were evaluated on the same held-out review pool.
+
+The observed results are summarized in Table~\ref{tab:doc-level-results}.
+
+
+\begin{table}[ht]
+
+\centering
+\caption{Document-level benchmark on the shared 1000-sample review set.}
+\label{tab:doc-level-results}
+\begin{tabular}{lccc}
+\toprule
+\textbf{Model} & \textbf{Accuracy} & \textbf{Macro F1} & \textbf{Weighted F1} \\
+\midrule
+CNN baseline & 0.4950 & 0.4968 & 0.4834 \\
+PhoBERT rating & 0.5210 & 0.5273 & 0.5160 \\
+50/50 ensemble & 0.5230 & 0.5258 & 0.5129 \\
+\bottomrule
+\end{tabular}
+
+\end{table}
+
+
+The results suggest that PhoBERT may be a suitable single-model choice among the stable document-level candidates. Although the simple ensemble gives slightly higher accuracy, PhoBERT is retained as the main model because its architecture is simpler for explanation.
+
+The document-level scores should be interpreted with task difficulty in mind. Predicting 1--5 star ratings is harder than binary sentiment classification because adjacent ratings can be ambiguous. Vietnamese e-commerce reviews are also short, noisy, informal, and often mixed across aspects. Therefore, the moderate macro F1 values are treated as expected results for fine-grained rating prediction on real-world reviews.
+
+
+\begin{figure}[H]
+
+    \centering
+    \includegraphics[width=\linewidth]{document_level_benchmark.png}
+    \caption{Document-level benchmark comparison between the CNN baseline, PhoBERT, and the simple ensemble.}
+    \label{fig:doc-benchmark}
+
+\end{figure}
+
+\subsection{Interpretability Analysis}
+
+
+The XAI layer was tested with Integrated Gradients and attention visualization. Rather than being evaluated as a separate predictive model, XAI was used for qualitative inspection of whether highlighted evidence was consistent with the review meaning and model output. In positive examples, higher attribution was often assigned to tokens related to fast delivery, careful packaging, and product satisfaction. In negative examples, highlighted tokens were often related to product ineffectiveness, unpleasant smell, skin incompatibility, or dissatisfaction.
+
+These observations suggest that the model may use meaningful customer-experience cues, not only general polarity words. When combined with ABSA, such explanations can provide additional context for why a review receives a predicted rating.
+
+The interpretability results should be viewed as qualitative evidence rather than a complete faithfulness evaluation. The main purpose of this layer is to make model behavior easier to inspect in review-analysis settings.
+
+
+\subsection{ABSA Core Results and Discussion}
+
+
+The ABSA core is derived from direct user ratings for product quality, seller service, and delivery service. This gives a more direct labeling basis, but class imbalance remains clear because positive labels dominate across all three aspects. As a result, class imbalance is an important issue for ABSA training and evaluation.
+
+The final ABSA checkpoint is the selected model from the balanced three-class run. Its performance on the held-out test set is summarized in Table~\ref{tab:absa-results}. The model obtained an accuracy of 0.9012, a macro F1-score of 0.5730, and a weighted F1-score of 0.9192. Although accuracy is high, macro F1 gives a more cautious view because the positive class remains dominant.
+
+
+\begin{table}[ht]
+
+\centering
+\caption{ABSA performance of the selected balanced three-class PhoBERT model on the test set.}
+\label{tab:absa-results}
+\begin{tabular}{lccc}
+\toprule
+\textbf{Model} & \textbf{Accuracy} & \textbf{Macro F1} & \textbf{Weighted F1} \\
+\midrule
+PhoBERT ABSA & 0.9012 & 0.5730 & 0.9192 \\
+\bottomrule
+\end{tabular}
+
+\end{table}
+
+
+The confusion matrix in Table~\ref{tab:absa-confusion} shows better performance on the positive class, while negative and especially neutral remain more difficult. This is consistent with the observed label skew and the noisy nature of e-commerce reviews.
+
+
+\begin{table}[ht]
+
+\centering
+\caption{Confusion matrix of the selected ABSA model on the test set. Rows denote gold labels and columns denote predicted labels.}
+\label{tab:absa-confusion}
+\begin{tabular}{lrrr}
+\toprule
+\textbf{Gold / Predicted} & \textbf{Positive} & \textbf{Negative} & \textbf{Neutral} \\
+\midrule
+Positive & 273,740 & 12,399 & 11,104 \\
+Negative & 756 & 7,735 & 2,662 \\
+Neutral & 2,618 & 1,727 & 3,827 \\
+\bottomrule
+\end{tabular}
+
+\end{table}
+
+\begin{figure}[H]
+
+    \centering
+    \includegraphics[width=0.75\linewidth]{absa_confusion_matrix.png}
+    \caption{Heatmap view of the ABSA confusion matrix on the test set.}
+    \label{fig:absa-cm}
+
+\end{figure}
+
+
+The moderate macro F1-score should therefore be interpreted in context. Minority labels are harder to learn, and many reviews are short, informal, and semantically mixed. The boundary between neighboring star ratings and the neutral aspect class is also ambiguous. On the held-out test set, the positive class reaches an F1-score of 0.9532, while the negative and neutral classes reach only 0.4686 and 0.2971, respectively. In development, synthetic or weakly curated augmentation did not consistently increase performance, which suggests that data quality remains important.
+
+
+Despite these challenges, the ABSA design is retained instead of a purely heuristic labeling pipeline because it is based on user-provided aspect ratings and is easier to interpret.
+
+\subsection{Practical Implications}
+
+In practice, the framework may support several review-analysis tasks. The document-level model can summarize overall satisfaction trends, the ABSA layer can separate dissatisfaction by product quality, seller service, or delivery, and the explanation layer can help analysts inspect the textual cues behind model outputs. These functions may be useful for sellers, marketing teams, and platform managers who need interpretable evidence in addition to aggregate sentiment scores.
+
+\section{Recommendations and Conclusion}
+
+\subsection{Limitations}
+
+
+This study has several limitations. First, the document-level CNN and PhoBERT models were originally trained on different historical splits, so comparison was performed on a shared external benchmark rather than in a fully unified training pipeline. Second, the review source is naturally noisy and imbalanced, which affects both star-rating prediction and aspect-level classification. Third, although the preprocessing workflow was designed to improve data quality and supports audit-oriented outputs, the current study did not include a separate large-scale human validation study of the cleaned dataset. Fourth, the ABSA core is derived from user-provided aspect ratings rather than from a benchmark-style manually annotated aspect sentiment corpus. Fifth, the ABSA core is limited to three user-rated aspects and does not cover all skincare concerns. Sixth, data augmentation remains difficult to control because weak synthetic samples may add volume without improving generalization.
+
+The historical state of the repository is another limitation. Several older CNN artifacts were technically corrupted and could not be reused, so stability had to be considered during model selection.
+
+
+\subsection{Recommendations for Future Work}
+
+
+Future work may extend this study in several ways. Document-level models could be retrained and compared under a unified split. The dataset can be extended to more products, crawl snapshots, and e-commerce domains. The ABSA core can also be expanded to aspects such as packaging, authenticity, and skin compatibility through validated labeling. In addition, the explainability layer could be evaluated with richer case studies and, if possible, human-centered assessment. Finally, the framework can be developed into a dashboard for monitoring customer feedback at overall and aspect-specific levels.
+
+
+\subsection{Conclusion}
+
+
+In this paper, an explainable framework for fine-grained sentiment analysis of Vietnamese e-commerce reviews was presented. A Vietnamese review dataset construction pipeline was built, and document-level rating prediction, core ABSA, and post-hoc explanation methods were combined. On the document-level task, PhoBERT rating outperformed the CNN baseline on the shared benchmark. For interpretability, Integrated Gradients and attention visualization were used to provide token-level evidence for model decisions. For aspect-level analysis, the ABSA core was derived from user-rated labels for product quality, service, and delivery, and PhoBERT ABSA obtained a macro F1-score of 0.5730 on the held-out test set.
+
+Overall, the results suggest that Vietnamese review mining can benefit from combining data collection and cleaning, transformer-based prediction, aspect-level decomposition, and token-level attribution. This approach may help businesses inspect customer feedback more transparently in e-commerce settings.
+
+
+\section*{References}
+
+
+Dang, V. T., Duong, N. H., \& Nguyen, N. L.-T. (2024). Prompt engineering with large language models for Vietnamese sentiment classification. In \textit{Proceedings of the 11th Workshop on Vietnamese Language and Speech Processing (VLSP 2024)} (pp. 45--52).
+
+
+Devlin, J., Chang, M.-W., Lee, K., \& Toutanova, K. (2019). BERT: Pre-training of deep bidirectional transformers for language understanding. In \textit{Proceedings of the 2019 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies} (pp. 4171--4186).
+
+Hu, M., \& Liu, B. (2004). Mining and summarizing customer reviews. In \textit{Proceedings of the Tenth ACM SIGKDD International Conference on Knowledge Discovery and Data Mining} (pp. 168--177).
+
+Jain, S., \& Wallace, B. C. (2019). Attention is not explanation. In \textit{Proceedings of the 2019 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies} (pp. 3543--3556).
+
+Nguyen, D. Q., \& Nguyen, A. T. (2020). PhoBERT: Pre-trained language models for Vietnamese. In \textit{Findings of the Association for Computational Linguistics: EMNLP 2020} (pp. 1037--1042).
+
+
+Nguyen, T. H., Nguyen, H. T., \& Nguyen, M. L. (2024). Exploring the power of large language models for Vietnamese implicit sentiment analysis. In \textit{Proceedings of the 2024 Conference on Empirical Methods in Natural Language Processing} (pp. 3120--3131).
+
+
+Sundararajan, M., Taly, A., \& Yan, Q. (2017). Axiomatic attribution for deep networks. In \textit{Proceedings of the 34th International Conference on Machine Learning} (pp. 3319--3328).
+
+
+Tran, K. Q., Huynh, Q. P.-M., Le, O. T.-H., Nguyen, K. V., \& Nguyen, N. L.-T. (2025). ViTASA: New benchmark and methods for Vietnamese targeted aspect sentiment analysis for multiple textual domains. \textit{Computer Speech \& Language}, \textit{93}, 101700.
+
+
+\end{document}
